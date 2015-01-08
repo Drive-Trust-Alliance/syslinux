@@ -1,5 +1,6 @@
 SUBDIRS = libupload tools lib elflink/ldlinux gpllib libutil modules mboot \
-	  menu samples elflink rosh cmenu hdt gfxboot sysdump lua/src chain
+	  menu samples elflink rosh cmenu hdt gfxboot sysdump lua/src chain \
+	msedpba
 
 .PHONY: subdirs $(SUBDIRS)
 subdirs: $(SUBDIRS)
