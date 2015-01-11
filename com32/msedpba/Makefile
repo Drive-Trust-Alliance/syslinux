@@ -16,7 +16,7 @@
 VPATH = $(SRC)
 include $(MAKEDIR)/elf.mk
 
-OBJS = msedpba.o
+OBJS = msedpba.o ahci.o sata.o
 CFLAGS += -fno-strict-aliasing
 
 all: msedpba.c32

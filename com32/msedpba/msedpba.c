@@ -18,8 +18,8 @@ This software is Copyright 2014-2015 Michael Romeo <r0m30@r0m30.com>
 
 * C:E********************************************************************** */
 #include <stdio.h>
-//#include <stdlib.h>
-//#include <string.h>
+#include <stdlib.h>
+#include <string.h>
 //#include <console.h>
 #include <sys/pci.h>
 //#include <com32.h>
@@ -38,6 +38,7 @@ int main(void)
 /* PCI base address registers */
     uint32_t BAR0, BAR1, BAR2, BAR3, BAR4, BAR5, ABAR;
     AHCI_GLOBAL *abar;
+    uint8_t ioBuffer[2048];
     
     domain = pci_scan();
     if(!domain) {
@@ -68,37 +69,27 @@ int main(void)
               return 2;
              }
             abar = (AHCI_GLOBAL *)ABAR;
-            printf("scanning for devices on adapter pi=%08x\n", abar->PI);
-            for (int i = 0; i < 32 ; i++) {
-                if( abar->PI & (1 << i)) {
-                    printf("SSTS %01x:%01x:%01x sig %08x\n",abar->PORT[i].SSTS.DET,
-                            abar->PORT[i].SSTS.SPD,abar->PORT[i].SSTS.IPM,
+            printf("Scanning for devices on adapter pi=%08x\n", abar->PI);
+            for (int i = 0; i < 32; i++) {
+                if (abar->PI & (1 << i)) {
+                    printf("SSTS %01x:%01x:%01x sig %08x\n", abar->PORT[i].SSTS.DET,
+                            abar->PORT[i].SSTS.SPD, abar->PORT[i].SSTS.IPM,
                             abar->PORT[i].SIG);
-                    if(     (abar->PORT[i].SSTS.DET == AHCI_PORT_DET_READY ) && 
-                            (abar->PORT[i].SSTS.IPM == AHCI_PORT_IPM_ACTIVE ) &&
-                            (abar->PORT[i].SIG == SATA_NOPACKET_DEVICE) 
+                    if ((abar->PORT[i].SSTS.DET == AHCI_PORT_DET_READY) &&
+                            (abar->PORT[i].SSTS.IPM == AHCI_PORT_IPM_ACTIVE) &&
+                            (abar->PORT[i].SIG == SATA_SIG_ATA)
                             ) {
-                        printf("Now I gotta do some IO\n");
-                        
-/*
-                        if(getbuffers() != 0) {
-                            printf("Unable to obtain buffers\n");
-                            return 3;
+                        printf("Now do some IO\n");
+                        if(ahci_initialize(&abar->PORT[i]) != 0) return 3;
+                        if(sataIdentify(&abar->PORT[i], &ioBuffer) != 0) {
+                            printf("identify failed\n");
                         }
-                        
-                        identify(abar->ports[i]);
-                        uint16_t *id = (uint16_t *) bufferin;
-                        if (x0000 == id[48]) {
-                            printf("Device not OPAL compliant\n");
-                            freebuffers();
-                            continue;
-                        } else {
-                            Unlock(port[i]);
-                            freebuffers();
-                        }
-*/
+                        uint16_t *dump = ioBuffer;
+                        printf("%04x %04x%04x%04x%04x%04x%04x%04x\n", dump[0],
+                                dump[27],dump[28],dump[29],dump[30],dump[31],dump[32],dump[33]);
+                        ahci_restore(&abar->PORT[i]);
+                       
                     }
-                        
                 }
             }
         }

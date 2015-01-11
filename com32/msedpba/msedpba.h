@@ -18,8 +18,4 @@ along with msed.  If not, see <http://www.gnu.org/licenses/>.
 
 * C:E********************************************************************** */
 #pragma once
-typedef enum _ATACOMMAND {
-    IF_RECV = 0x5c,
-    IF_SEND = 0x5e,
-    IDENTIFY = 0xec,
-} ATACOMMAND;
+

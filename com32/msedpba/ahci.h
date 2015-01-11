@@ -19,7 +19,9 @@ along with msed.  If not, see <http://www.gnu.org/licenses/>.
 * C:E********************************************************************** */
 #pragma once
 #pragma pack(push)
-#pragma pack(1)
+#pragma pack(4)
+
+#include <stdint.h>
 
 /** Structures for accessing AHCI devices
  * See the AHCI specification v1.3 
@@ -35,7 +37,7 @@ along with msed.  If not, see <http://www.gnu.org/licenses/>.
 /* 
  * structures to define bits of a AHCI PORT registers
  */
-typedef struct _PxIS {
+typedef volatile struct _PxIS {
     uint32_t DHRS :1; /*< Device to Host Register FIS Interrupt */
     uint32_t PSS :1; /*< PIO Setup FIS Interrupt */
     uint32_t DSS :1; /*< DMA Setup FIS Interrupt */
@@ -77,7 +79,7 @@ typedef struct _PxIE {
     uint32_t TFEE :1; /*< Task File Error Enable  */
     uint32_t CPDE :1; /*< Cold Presence Detect Enable */
 } PxIE;
-typedef struct _PxCMD {
+typedef volatile struct _PxCMD {
     uint32_t ST  :1; /*< Start */
     uint32_t SUD :1; /*< Spin-Up Device */
     uint32_t POD :1; /*< Power On Device */
@@ -103,7 +105,7 @@ typedef struct _PxCMD {
     uint32_t ICC :4; /*< Interface Communication Control */
 
 } PxCMD;
-typedef struct _PxTFD { 
+typedef volatile struct _PxTFD { 
 /* Status (STS) */
     uint32_t  STSERR :1; /*< error during the transfer */
     uint32_t STSDRQcs :2; /*< Command specific */
@@ -126,7 +128,7 @@ typedef struct _PxTFD {
 #define AHCI_PORT_IPM_ACTIVE 1
 #define AHCI_PORT_IPM_PARTIALPM 2
 #define AHCI_PORT_IPM_SLUMBER 6
-typedef struct _PxSSTS {
+typedef volatile struct _PxSSTS {
     uint32_t DET :4; /*< Device Detection */
     uint32_t SPD :4; /*< Current Interface Speed */
     uint32_t IPM :4; /*< Interface Power Management */
@@ -137,8 +139,8 @@ typedef struct _PxSSTS {
  */
 typedef volatile struct _AHCI_PORT
 {
-    uint32_t CBL;     /*< Port x Command List Base Address */
-    uint32_t CBLU;    /*< Port x Command List Base Address Upper 32-Bits*/
+    uint32_t CLB;     /*< Port x Command List Base Address */
+    uint32_t CLBU;    /*< Port x Command List Base Address Upper 32-Bits*/
     uint32_t FB;       /*< Port x FIS Base Address */
     uint32_t FBU;      /*< Port x FIS Base Address Upper 32-Bits */
     PxIS     IS;      /*< Port x Interrupt Status */
@@ -169,7 +171,7 @@ typedef volatile struct _AHCI_PORT
 /** 
  * AHCI global memory register definition 
  */
-typedef struct _AHCICAP {
+typedef volatile struct _AHCICAP {
     uint32_t NP         :5;  /*< Number of ports */
     uint32_t SXS        :1; /*< Supports External Sata */
     uint32_t EMS        :1; /*< Supports Enclisure Management */
@@ -192,21 +194,21 @@ typedef struct _AHCICAP {
     uint32_t SNCQ      :1; /*< Supports Native Command Queuing*/
     uint32_t S64a      :1; /*< Supports 64-bit Addressing*/
 } AHCICAP;
-typedef struct _AHCIGHC {
+typedef volatile struct _AHCIGHC {
     uint32_t HR       :1; /*< HBA Reset */
     uint32_t IE       :1; /*< Interrupt Enable */
     uint32_t MRSM     :1; /*< MSI Revert to Single Message */
     uint32_t res      :28; /*< reserved */
     uint32_t AE       :1; /*< AHCI Enable */
 } AHCIGHC;
-typedef struct _AHCICCCCTL {
-     uint16_t EN       :1; /*< Enable */
-    uint16_t res03     :2; /*< reserved */
-    uint16_t INT       :5; /*< Interrupt */
-    uint16_t CC        :8; /*< Command Completion */
-    uint16_t TV;            /*< Timeout Value */  
+typedef volatile struct _AHCICCCCTL {
+     uint32_t EN       :1; /*< Enable */
+    uint32_t res03     :2; /*< reserved */
+    uint32_t INT       :5; /*< Interrupt */
+    uint32_t CC        :8; /*< Command Completion */
+    uint32_t TV        :16; /*< Timeout Value */  
 } AHCICCCCTL;
-typedef struct _AHCICAP2 {
+typedef volatile struct _AHCICAP2 {
   uint32_t BOH       :1; /*< BIOS/OS Handoff */
     uint32_t NVMP       :1; /*< NVMHCI Present */
     uint32_t APST       :1; /*< Automatic Partial to Slumber Transitions */
@@ -221,8 +223,8 @@ typedef volatile struct _AHCI_GLOBAL
     uint32_t VS;         /*< AHCI Version */
     AHCICCCCTL CCC_CTL;  /*< Command Completion Coalescing Control */
     uint32_t CCC_PORTS; /*< Command Completion Coalescing Ports */
-    uint16_t OFST;  /*< Enclosure Management Location offset */
-    uint16_t SZ; /*< Enclosure Management Location buffer size*/
+    uint32_t OFST  :16;  /*< Enclosure Management Location offset */
+    uint32_t SZ    :16; /*< Enclosure Management Location buffer size*/
     uint32_t EM_CTL; /*< Enclosure Management Control */
     AHCICAP2 CAP2;   /*< Capabilities Extended */
     uint32_t BOHC;      /*< BIOS/OS Handoff Control and Status */
@@ -232,3 +234,71 @@ typedef volatile struct _AHCI_GLOBAL
     AHCI_PORT PORT[];  /* AHCI port registers */
     
 } AHCI_GLOBAL;
+/** Physical Region Descriptor TABLE ENTRY 
+ * Defined on pp 40
+ * 
+ * Describes an entry in the scatter gather table 
+ * for an I/O to an AHCI Device
+ */
+typedef volatile struct _DESCINFO {
+    uint32_t DBC :22; /*< Data Byte Count - 0 based */
+    uint32_t reserved22_30 : 9; /*< reserved */
+    uint32_t I :1; /*< Intreupt triggered when datablock transferred */
+} DESCINFO;
+typedef volatile struct _AHCI_PRDTE {
+    uint32_t DBA; /*< Data Base Address */
+    uint32_t DBAU; /*< Data Base Address upper 32 bits */
+     uint32_t reserved; /*< reserved */
+     DESCINFO DI;  /*< Description Information */
+     
+} AHCI_PRDTE;
+
+typedef volatile struct _AHCI_CMDDI {
+    uint16_t CFL:5; /*< Command FIS Length */
+    uint16_t A :1; /*< ATAPI */
+    uint16_t W :1; /*< Write */
+    uint16_t P :1; /*< Prefetchable */
+    uint16_t R :1; /*< Reset */
+    uint16_t B :1; /*< BIST */
+    uint16_t C :1; /*< Clear Busy upon R_OK */
+    uint16_t reserved11 :1; /*< Reserved */
+    uint16_t PMP :4; /*< Port Multiplier Port */
+    uint16_t PRDTL; /*< Physical Region Descriptor Table Length */
+} AHCI_CMDDI;
+typedef volatile struct _AHCI_COMMAND_HEADER {
+    
+    AHCI_CMDDI DI; /*< Description Information */
+    uint32_t  PRDBC; /*< Physical Region Descriptor Byte Count */
+    uint32_t  CTBA; /*< Command Table Descriptor Base Address */
+    uint32_t  CTBAU; /*< Command Table Descriptor Base Address Upper 32-bits */
+    uint32_t  reserved[4];
+} AHCI_COMMAND_HEADER;
+/** Command TABLE 
+ * Defined on pp 39
+ * 
+ * Details the direction, type, and scatter/gather pointer of the command
+ */
+typedef volatile struct _AHCI_COMMAND_TABLE {
+    uint8_t CFIS[0x40]; /*< Command FIS */
+    uint8_t ACMD[0x10]; /*< ATAPIATAPI commant */
+    uint8_t reserved50_79[0x80-0x50]; /*< reserved */
+    AHCI_PRDTE PRDT[]; /*< PRDT Table */
+} AHCI_COMMAND_TABLE;
+/** Save area for information needed to restore state */
+typedef struct _AHCI_INIT_SAVE {
+    uint32_t baseMemoryAddress;    /*< actual mallic address */
+    uint32_t originalCLB;           /*< preinit Command List Base address */
+    uint32_t originalCLBU;          /*< preinit Command List Base address upper 32Bits*/
+    uint32_t originalFB;            /*< preinit Received FIS Base address */
+    uint32_t originalFBU;           /*< preinit Received FIS Base address upper 32 bits*/
+    uint8_t originalST;             /*< Original State of CMD.ST */
+    uint8_t originalFRE;            /*< Original state of CMD.FRE */
+} AHCI_INIT_SAVE ;
+
+/** Create structures to allow an I/O to be processed on an AHCI port.
+ * 
+ * Since we don't know what the BIOS will and wont setup we go in with 
+ * the assumption that we are working with a clean slate.  
+ */
+int ahci_initialize(AHCI_PORT *port);
+void ahci_restore(AHCI_PORT *port);

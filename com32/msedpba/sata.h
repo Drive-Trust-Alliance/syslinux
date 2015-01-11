@@ -19,8 +19,13 @@ along with msed.  If not, see <http://www.gnu.org/licenses/>.
 * C:E********************************************************************** */
 #pragma once
 #pragma pack(push)
-#pragma pack(1)
+#pragma pack(4)
 #include <stdint.h>
+
+#define ATACOMMAND_IF_RECV 0x5c
+#define ATACOMMAND_IF_SEND 0x5e
+#define ATACOMMAND_IDENTIFY 0xec
+
 /*  
  * These structures and constants are defined in the 
  * SerialATA specification (rev 3.2 used) for this file 
@@ -33,8 +38,10 @@ along with msed.  If not, see <http://www.gnu.org/licenses/>.
  * Device signatures are apparently one of those things your just
  * supposed to know.  I found these via web searches
  */
-#define SATA_PACKET_DEVICE 0xEB140101 
-#define SATA_NOPACKET_DEVICE 0x00000101
+#define	SATA_SIG_ATA	0x00000101	// SATA drive
+#define	SATA_SIG_ATAPI	0xEB140101	// SATAPI drive
+#define	SATA_SIG_SEMB	0xC33C0101	// Enclosure management bridge
+#define	SATA_SIG_PM	0x96690101	// Port multiplier
 
 /* FIS types pp 505 */
 #define FIS_TYPE_REGISTER_H2D 0x27
@@ -69,5 +76,6 @@ typedef struct _FIS_REGISTER_H2D {
     
 } FIS_REGISTER_H2D;
 
-
+int sataIOCtl(AHCI_PORT *port, uint8_t write, void * fis, size_t fislength, void *buffer, size_t buflength);
+int sataIdentify(AHCI_PORT *port, void* buffer);
 #pragma pack(pop)
