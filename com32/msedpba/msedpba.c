@@ -20,14 +20,14 @@ This software is Copyright 2014-2015 Michael Romeo <r0m30@r0m30.com>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-//#include <console.h>
+#include <consoles.h>
 #include <sys/pci.h>
 //#include <com32.h>
 //#include <stdbool.h>
 //#include <ctype.h>
 //#include <dprintf.h>
 #include "msedpba.h"
-#include "ahci.h"
+#include "unlockOpal.h"
 #include "sata.h"
 
 int main(void)
@@ -39,7 +39,13 @@ int main(void)
     uint32_t BAR0, BAR1, BAR2, BAR3, BAR4, BAR5, ABAR;
     AHCI_GLOBAL *abar;
     uint8_t ioBuffer[2048];
+    char consoleBuffer[100];
+    OPAL_DiskInfo disk_info;
+    uint32_t fail = 0;
     
+
+     console_ansi_std();
+     
     domain = pci_scan();
     if(!domain) {
         printf("No supported devices found\n");
@@ -80,15 +86,36 @@ int main(void)
                             (abar->PORT[i].SIG == SATA_SIG_ATA)
                             ) {
                         printf("Now do some IO\n");
-                        if(ahci_initialize(&abar->PORT[i]) != 0) return 3;
-                        if(sataIdentify(&abar->PORT[i], &ioBuffer) != 0) {
+                        if(sataOpen(&abar->PORT[i])) return 3;
+                        if(sataIdentify(&abar->PORT[i], &ioBuffer)) {
                             printf("identify failed\n");
                         }
-                        uint16_t *dump = ioBuffer;
-                        printf("%04x %04x%04x%04x%04x%04x%04x%04x\n", dump[0],
-                                dump[27],dump[28],dump[29],dump[30],dump[31],dump[32],dump[33]);
-                        ahci_restore(&abar->PORT[i]);
-                       
+                        memset(&disk_info,0,sizeof(OPAL_DiskInfo));
+                        disk_info.devType = 1;
+                        
+                        IDENTIFY_RESPONSE *identifyResp = (IDENTIFY_RESPONSE *)ioBuffer;
+                        for (uint16_t i = 0; i < sizeof (disk_info.serialNum); i += 2) {
+                            disk_info.serialNum[i] = identifyResp->serialNum[i + 1];
+                            disk_info.serialNum[i + 1] = identifyResp->serialNum[i];
+                        }
+                        for (uint16_t i = 0; i < sizeof (disk_info.firmwareRev); i += 2) {
+                            disk_info.firmwareRev[i] = identifyResp->firmwareRev[i + 1];
+                            disk_info.firmwareRev[i + 1] = identifyResp->firmwareRev[i];
+                        }
+                        for (uint16_t i = 0; i < sizeof (disk_info.modelNum); i += 2) {
+                            disk_info.modelNum[i] = identifyResp->modelNum[i + 1];
+                            disk_info.modelNum[i + 1] = identifyResp->modelNum[i];
+                        }
+                        printf("Identify %s %s %s\n", disk_info.modelNum,disk_info.firmwareRev,disk_info.serialNum);
+                        discovery0(&abar->PORT[i], &disk_info);
+                        uint32_t *dump = (uint32_t *) &disk_info;
+                        for(int i = 0; i < (int) sizeof(OPAL_DiskInfo) / 4; i+=4) {
+                            printf("%08x %08x %08x %08x \n",dump[0+i],dump[1+i],dump[2+i],dump[3+i]);
+                        }
+                        if((disk_info.OPAL10 || disk_info.OPAL20) && disk_info.Locking_locked) 
+                            fail |= unlockOpal(&abar->PORT[i],"passw0rd",disk_info.Locking_MBREnabled);
+                        sataClose(&abar->PORT[i]);
+                       fgets(consoleBuffer, sizeof consoleBuffer, stdin);
                     }
                 }
             }

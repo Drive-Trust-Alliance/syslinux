@@ -107,12 +107,12 @@ typedef volatile struct _PxCMD {
 } PxCMD;
 typedef volatile struct _PxTFD { 
 /* Status (STS) */
-    uint32_t  STSERR :1; /*< error during the transfer */
-    uint32_t STSDRQcs :2; /*< Command specific */
+    uint32_t STSERR :1; /*< error during the transfer */
+    uint32_t STSCS01 :2; /*< Command specific */
     uint32_t STSDRQ :1; /*< data transfer is requested */
-    uint32_t STSBSYcs :3; /*< Command specific */
+    uint32_t STSCS02 :3; /*< Command specific */
     uint32_t STSBSY :1; /*< interface is busy */
-     uint32_t ERR :8; /*< latest copy of the task file error register */
+    uint32_t ERR :8; /*< latest copy of the task file error register */
     uint32_t reserved_16_31 :16; /*< Reserved */
 } PxTFD;
 #define AHCI_PORT_DET_NOTPRESENT 0
@@ -243,7 +243,7 @@ typedef volatile struct _AHCI_GLOBAL
 typedef volatile struct _DESCINFO {
     uint32_t DBC :22; /*< Data Byte Count - 0 based */
     uint32_t reserved22_30 : 9; /*< reserved */
-    uint32_t I :1; /*< Intreupt triggered when datablock transferred */
+    uint32_t I :1; /*< Interrupt triggered when datablock transferred */
 } DESCINFO;
 typedef volatile struct _AHCI_PRDTE {
     uint32_t DBA; /*< Data Base Address */
@@ -254,16 +254,16 @@ typedef volatile struct _AHCI_PRDTE {
 } AHCI_PRDTE;
 
 typedef volatile struct _AHCI_CMDDI {
-    uint16_t CFL:5; /*< Command FIS Length */
-    uint16_t A :1; /*< ATAPI */
-    uint16_t W :1; /*< Write */
-    uint16_t P :1; /*< Prefetchable */
-    uint16_t R :1; /*< Reset */
-    uint16_t B :1; /*< BIST */
-    uint16_t C :1; /*< Clear Busy upon R_OK */
-    uint16_t reserved11 :1; /*< Reserved */
-    uint16_t PMP :4; /*< Port Multiplier Port */
-    uint16_t PRDTL; /*< Physical Region Descriptor Table Length */
+    uint32_t CFL:5; /*< Command FIS Length */
+    uint32_t A :1; /*< ATAPI */
+    uint32_t W :1; /*< Write */
+    uint32_t P :1; /*< Prefetchable */
+    uint32_t R :1; /*< Reset */
+    uint32_t B :1; /*< BIST */
+    uint32_t C :1; /*< Clear Busy upon R_OK */
+    uint32_t reserved11 :1; /*< Reserved */
+    uint32_t PMP :4; /*< Port Multiplier Port */
+    uint32_t PRDTL :16; /*< Physical Region Descriptor Table Length */
 } AHCI_CMDDI;
 typedef volatile struct _AHCI_COMMAND_HEADER {
     
@@ -291,8 +291,8 @@ typedef struct _AHCI_INIT_SAVE {
     uint32_t originalCLBU;          /*< preinit Command List Base address upper 32Bits*/
     uint32_t originalFB;            /*< preinit Received FIS Base address */
     uint32_t originalFBU;           /*< preinit Received FIS Base address upper 32 bits*/
-    uint8_t originalST;             /*< Original State of CMD.ST */
-    uint8_t originalFRE;            /*< Original state of CMD.FRE */
+    uint8_t originalCR;             /*< Original State of CMD.ST */
+    uint8_t originalFR;            /*< Original state of CMD.FRE */
 } AHCI_INIT_SAVE ;
 
 /** Create structures to allow an I/O to be processed on an AHCI port.

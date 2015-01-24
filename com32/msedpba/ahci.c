@@ -35,7 +35,7 @@ int ahci_initialize(AHCI_PORT *port) {
     AHCI_INIT_SAVE *ahciSave;    /*< Save area for status restore and free */
 
     memBase = malloc(AHCI_INIT_MEM_SIZE); 
-    if((uint32_t)memBase < 1) { 
+    if(NULL == memBase) { 
         printf("Error allocating memory for AHCI initialization \n");
         return -1;  /* should reconcile these with std error numbers */
     }
@@ -45,16 +45,18 @@ int ahci_initialize(AHCI_PORT *port) {
     receivedFIS = commandList + 1024;
     ahciSave = receivedFIS + 256;
     
-    ahciSave->originalST = port->CMD.ST;
-    ahciSave->originalFRE = port->CMD.FRE;
+    ahciSave->originalCR = port->CMD.CR;
+    ahciSave->originalFR = port->CMD.FR;
     
 //    printf("Stopping the PORT CMD.ST = %01x \n",port->CMD.ST);
 /* Stop activity on the port so we can reconfigure the memory*/
     port->CMD.ST = 0;   /* stop the port */
 //    printf("Waiting on CI\n");
-    do {}               /* wait for the HBA to clear PxCI */
-    while(port->CI !=0 );
+    do {} while(port->CI !=0 );
     port->CMD.FRE = 0;
+    do {} while (port->CMD.FR != 0);
+    printf("Port stopped ST = %01x FRE = %01x CR = %01x FR = %01x \n",port->CMD.ST,port->CMD.FRE
+            ,port->CMD.CR,port->CMD.FR);
 //    printf("Port stopped assigning memory\n");
 /*  Assign the new memory structures to the port */
     ahciSave->baseMemoryAddress = (uint32_t) memBase;
@@ -68,9 +70,12 @@ int ahci_initialize(AHCI_PORT *port) {
     port->FBU = 0;
 //    printf("Restarting Port\n");
     port->CMD.FRE = 1;
+    do {} while (port->CMD.FR != 1);
     port->CMD.ST = 1;
-    printf("ST = %01x FRE = %01x \n",port->CMD.ST,port->CMD.FRE);
-    printf("CLB = %04x FB = %04x \n",port->CLB,port->FB);
+    do {} while (port->CMD.CR != 1);
+    printf("Port started ST = %01x FRE = %01x CR = %01x FR = %01x \n",port->CMD.ST,port->CMD.FRE
+            ,port->CMD.CR,port->CMD.FR);
+    printf("CLB = %08x FB = %08x \n",port->CLB,port->FB);
     return 0;
 } 
 void ahci_restore(AHCI_PORT *port) {
@@ -81,9 +86,9 @@ void ahci_restore(AHCI_PORT *port) {
     /* Stop activity on the port so we can reconfigure the memory*/
     port->CMD.ST = 0;   /* stop the port */
 //    printf("Waiting on CI\n");
-    do {}               /* wait for the HBA to clear PxCI */
-    while(port->CI !=0 );
+    do {} while(port->CI !=0 );
     port->CMD.FRE = 0;
+    do {} while (port->CMD.FR != 0);
 /* restore port to original state */
     cmdList = (void *) port->CLB;
     ahciSave = cmdList + 1024 + 256;
@@ -94,8 +99,13 @@ void ahci_restore(AHCI_PORT *port) {
     port->FBU = ahciSave->originalFBU;
     
 /* Restart port if required */
-    port->CMD.ST = ahciSave->originalST;
-    port->CMD.FRE = ahciSave->originalFRE;
-    
+     if(ahciSave->originalFR) {
+        port->CMD.FRE = 1;
+        do {} while (port->CMD.FR != 1);
+    }
+    if(ahciSave->originalCR) {
+        port->CMD.ST = 1;
+        do {} while (port->CMD.CR != 1);
+    }
     free(memBase);
 }
