@@ -20,4 +20,5 @@ This software is Copyright 2014-2015 Michael Romeo <r0m30@r0m30.com>
 #pragma once
 #include <stddef.h>
 #include "msedpba.h"
-uint8_t unlockOpal(AHCI_PORT *port, char * pass,uint8_t mbr);
+uint8_t unlockOpal(AHCI_PORT *port, char * pass,OPAL_DiskInfo *disk_info);
+		

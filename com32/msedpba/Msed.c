@@ -35,26 +35,27 @@ uint8_t sendCmd(AHCI_PORT *port, uint8_t ataCommand, uint8_t protocol,
             return sataIFSEND(port, protocol, comid, buffer, bufSize);
     return 0xff;
 }
-uint8_t exec(AHCI_PORT *port, void * cmd, void * response, uint8_t protocol, uint16_t comid)
-{
+
+uint8_t exec(AHCI_PORT *port, void * cmd, void * response, uint8_t protocol, uint16_t comid) {
+
     uint8_t rc = 0;
-    rc = sendCmd(port,IF_SEND, protocol, comid, cmd, IO_BUFFER_LENGTH);
+    rc = sendCmd(port, IF_SEND, protocol, comid, cmd, IO_BUFFER_LENGTH);
     if (0 != rc) {
-        printf("Command failed on send %i",rc);
+        printf("Command failed on send %i", rc);
         return rc;
     }
-   OPALHeader *hdr = (OPALHeader *) response;
+    OPALHeader *hdr = (OPALHeader *) response;
     do {
         msleep(25);
         memset(response, 0, IO_BUFFER_LENGTH);
         rc = sendCmd(port, IF_RECV, protocol, comid, response, IO_BUFFER_LENGTH);
-    }
-    while ((0 != hdr->cp.outstandingData) && (0 == hdr->cp.minTransfer));
+   }    while ((0 != hdr->cp.outstandingData) && (0 == hdr->cp.minTransfer));
     if (0 != rc) {
-        printf("Command failed on recv %i",rc);
+        printf("Command failed on recv %i", rc);
         return rc;
     }
-     return 0;
+
+    return 0;
 }
 //void MsedBaseDev::discovery0()
 void discovery0(AHCI_PORT *port, OPAL_DiskInfo *disk_info)

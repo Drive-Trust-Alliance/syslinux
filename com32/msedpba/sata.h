@@ -18,8 +18,11 @@ along with msed.  If not, see <http://www.gnu.org/licenses/>.
 
 * C:E********************************************************************** */
 #pragma once
+#pragma pack(push)
+#pragma pack(4)
 #include <stdint.h>
 #include "ahci.h"
+
 
 #define ATACOMMAND_IF_RECV 0x5c
 #define ATACOMMAND_IF_SEND 0x5e
@@ -82,3 +85,4 @@ void sataClose(AHCI_PORT *port);
 int sataIFSEND(AHCI_PORT *port, uint8_t protocol, uint16_t comid, void* buffer, size_t bufLength);
 int sataIFRECV(AHCI_PORT *port, uint8_t protocol, uint16_t comid, void* buffer, size_t bufLength);
 int sataIFCMD(uint8_t cmd, AHCI_PORT *port, uint8_t protocol, uint16_t comid, void* buffer, size_t bufLength);
+#pragma pack(pop)

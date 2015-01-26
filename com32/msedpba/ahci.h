@@ -143,7 +143,10 @@ typedef volatile struct _AHCI_PORT
     uint32_t CLBU;    /*< Port x Command List Base Address Upper 32-Bits*/
     uint32_t FB;       /*< Port x FIS Base Address */
     uint32_t FBU;      /*< Port x FIS Base Address Upper 32-Bits */
-    PxIS     IS;      /*< Port x Interrupt Status */
+    union {
+        PxIS     BIT;  /*< Port x Interrupt Status */
+        uint32_t REG;
+    } IS;
     PxIE     IE;      /*< Port x Interrupt Enable */
     PxCMD    CMD;     /*< Port x Command and Status */
     uint32_t reserved_1c_1f;   /*< Reserved */

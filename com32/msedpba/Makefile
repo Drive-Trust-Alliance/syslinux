@@ -17,6 +17,10 @@ VPATH = $(SRC)
 include $(MAKEDIR)/elf.mk
 
 OBJS = msedpba.o ahci.o sata.o Msed.o unlockOpal.o
+GNUOBJS = sha1.o hmac-sha1.o memxor.o gc-gnulib.o gc-pbkdf2-sha1.o
+
+OBJS += $(GNUOBJS)
+
 CFLAGS += -fno-strict-aliasing -Werror -Wall
 
 all: msedpba.c32

@@ -20,7 +20,7 @@ This software is Copyright 2014-2015 Michael Romeo <r0m30@r0m30.com>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-//#include <dprintf.h>
+#include <dprintf.h>
 
 #include "ahci.h"
 #include "sata.h"
@@ -28,15 +28,15 @@ This software is Copyright 2014-2015 Michael Romeo <r0m30@r0m30.com>
 #define SATA_IOCTL_MEM_SIZE 4096*2  //ensure buffer 4K aligned 
 int sataIOCtl(AHCI_PORT *port, uint8_t write, void * fis, size_t fislength, void *buffer, size_t buflength) {
     if(buflength % 2) {
-        printf("SATA Spec calls for even byte I/O\n");
+        dprintf("SATA Spec calls for even byte I/O\n");
         return -99;
     }
     if(8192 < buflength) {
-        printf("Driver currently supports max 8192 byte I/O\n");
+        dprintf("Driver currently supports max 8192 byte I/O\n");
         return -98;
     }
 /* allocate and populate the AHCI Command list structure */
-       printf("Entered sata_I/O control \n");
+       dprintf("Entered sata_I/O control \n");
 /* void pointers for math */
     void *memBase;       /*< initial memory pointer before alignment */
     void *commandTable;      /*< AHCI Command table  */
@@ -45,7 +45,7 @@ int sataIOCtl(AHCI_PORT *port, uint8_t write, void * fis, size_t fislength, void
     void *ioBuffer;         /*< address of the I/O buffer */
     memBase = malloc(SATA_IOCTL_MEM_SIZE+buflength); 
     if(NULL == memBase) { 
-        printf("Error allocating memory for sata I/O control \n");
+        dprintf("Error allocating memory for sata I/O control \n");
         return -1;  /* should reconcile these with std error numbers */
     }
     memset(memBase, 0, SATA_IOCTL_MEM_SIZE+buflength);
@@ -57,8 +57,9 @@ int sataIOCtl(AHCI_PORT *port, uint8_t write, void * fis, size_t fislength, void
     prdte->DBA = (uint32_t) ioBuffer;
     prdte->DBAU = 0;
     prdte->DI.DBC = buflength - 1; /* DBC is 0 based */
+    prdte->DI.I = 1;
     memcpy(ioBuffer,buffer,buflength);
-    printf("commandTable %p PRDT %p ioBuffer %p \n", commandTable, prdtAddr, ioBuffer);
+    dprintf("commandTable %p PRDT %p ioBuffer %p \n", commandTable, prdtAddr, ioBuffer);
 /* update the command slot with the address of the command list */
 // assuming single threaded initialization and using slot 0 
     AHCI_COMMAND_HEADER *commandHeader = (AHCI_COMMAND_HEADER *) port->CLB;
@@ -68,15 +69,15 @@ int sataIOCtl(AHCI_PORT *port, uint8_t write, void * fis, size_t fislength, void
     commandHeader->DI.PRDTL = 1;
     commandHeader->CTBA = (uint32_t) commandTable;
     /* tell the HBA it has a command */
-    port->IS.DPS = 0;
+    port->IS.REG = 0xffff;
     port->CI |= 1; 
-    printf("issued command - bsy %01x drq %01x CI %08x\n", port->TFD.STSBSY, port->TFD.STSDRQ, port->CI);
+    dprintf("issued command - bsy %01x drq %01x CI %08x\n", port->TFD.STSBSY, port->TFD.STSDRQ, port->CI);
     /* wait for the results */
     do {if(port->TFD.STSERR) break;} while (port->CI & 1);
-    printf("Ended - bsy %01x drq %01x STSERR %01x CI %08x\n", port->TFD.STSBSY, port->TFD.STSDRQ, 
+    dprintf("Ended - bsy %01x drq %01x STSERR %01x CI %08x\n", port->TFD.STSBSY, port->TFD.STSDRQ, 
             port->TFD.STSERR,port->CI);
-    printf("SATAIOCTL - PRDBC %08x\n", commandHeader->PRDBC);
-    memcpy(buffer,ioBuffer,buflength);
+    dprintf("SATAIOCTL - PRDBC %08x\n", commandHeader->PRDBC);
+
     if (port->TFD.STSERR) {
         // stop and restart the port to clear stserr
         port->CMD.ST = 0; /* stop the port */
@@ -89,51 +90,63 @@ int sataIOCtl(AHCI_PORT *port, uint8_t write, void * fis, size_t fislength, void
         do {} while (port->CMD.CR != 1);
         free(memBase);
         return -2;
+    } else {
+        dprintf("Spinning on IS.DPS\n");
+        do {} while (port->IS.BIT.DPS != 1);
+        memcpy(buffer, ioBuffer, buflength);
+        port->IS.REG = 0xffff;
+        free(memBase);
     }
-    free(memBase);
     return 0;
-} 
-int sataOpen(AHCI_PORT *port) {return ahci_initialize(port);}
-void sataClose(AHCI_PORT *port) {ahci_restore(port);}
+}
+
+int sataOpen(AHCI_PORT *port) {
+    return ahci_initialize(port);
+}
+
+void sataClose(AHCI_PORT *port) {
+    ahci_restore(port);
+}
+
 int sataIdentify(AHCI_PORT *port, void* buffer) {
-      FIS_REGISTER_H2D fis;
-      memset(&fis,0,sizeof(FIS_REGISTER_H2D));
-      fis.fis_type = FIS_TYPE_REGISTER_H2D;
-      fis.command = ATACOMMAND_IDENTIFY;
-      fis.c = 1;
-      return sataIOCtl(port, 0, (void *) &fis, sizeof(FIS_REGISTER_H2D), buffer, 512);
-  }
-  int sataIFSEND(AHCI_PORT *port, uint8_t protocol, uint16_t comid, void* buffer, size_t bufLength) {
-      return sataIFCMD(ATACOMMAND_IF_SEND, port,protocol,comid,buffer,bufLength);
-  }
-  int sataIFRECV(AHCI_PORT *port, uint8_t protocol, uint16_t comid, void* buffer, size_t bufLength) {
-      return sataIFCMD(ATACOMMAND_IF_RECV, port,protocol,comid,buffer,bufLength);
-  }
-  int sataIFCMD(uint8_t cmd, AHCI_PORT *port, uint8_t protocol, uint16_t comid, void* buffer, size_t bufLength) {
-      FIS_REGISTER_H2D fis;
-      uint8_t readwrite;
-      memset(&fis,0,sizeof(FIS_REGISTER_H2D));
-      fis.fis_type = FIS_TYPE_REGISTER_H2D;
-      fis.command = cmd;
-      fis.c = 1;
+    FIS_REGISTER_H2D fis;
+    memset(&fis, 0, sizeof (FIS_REGISTER_H2D));
+    fis.fis_type = FIS_TYPE_REGISTER_H2D;
+    fis.command = ATACOMMAND_IDENTIFY;
+    fis.c = 1;
+    return sataIOCtl(port, 0, (void *) &fis, sizeof (FIS_REGISTER_H2D), buffer, 512);
+}
+
+int sataIFSEND(AHCI_PORT *port, uint8_t protocol, uint16_t comid, void* buffer, size_t bufLength) {
+    return sataIFCMD(ATACOMMAND_IF_SEND, port, protocol, comid, buffer, bufLength);
+}
+
+int sataIFRECV(AHCI_PORT *port, uint8_t protocol, uint16_t comid, void* buffer, size_t bufLength) {
+    return sataIFCMD(ATACOMMAND_IF_RECV, port, protocol, comid, buffer, bufLength);
+}
+
+int sataIFCMD(uint8_t cmd, AHCI_PORT *port, uint8_t protocol, uint16_t comid, void* buffer, size_t bufLength) {
+    FIS_REGISTER_H2D fis;
+    uint8_t readwrite;
+    memset(&fis, 0, sizeof (FIS_REGISTER_H2D));
+    fis.fis_type = FIS_TYPE_REGISTER_H2D;
+    fis.command = cmd;
+    fis.c = 1;
     if (ATACOMMAND_IF_RECV == cmd)
         readwrite = 0;
     else if (ATACOMMAND_IF_SEND == cmd)
         readwrite = 1;
     else return 0xff;
-      
-      fis.fis_type = FIS_TYPE_REGISTER_H2D;
-      fis.command = cmd;
-/* FIS fields per ACS-3 pp 273 281  
- * and TCG SIIS pp 17 */
-      fis.feature0 = protocol;
-/* count and lba0 have the length ACS-3 */
-      fis.count0 = bufLength / 512 ;
-      fis.lba0 = 0;  // upper 8 bits of transfer length, always 0 for msed
-/* lba1 & lba2 are SP specific ACS3 */
- /* SP specific = comid SIIS */
-      fis.lba1 = comid & 0x00ff;
-      fis.lba2 = (comid >> 8) & 0x00ff;
-      return sataIOCtl(port, readwrite, (void *) &fis, sizeof(FIS_REGISTER_H2D), buffer, bufLength);
-  }
+    /* FIS fields per ACS-3 pp 273 281  
+     * and TCG SIIS pp 17 */
+    fis.feature0 = protocol;
+    /* count and lba0 have the length ACS-3 */
+    fis.count0 = bufLength / 512;
+    fis.lba0 = 0; // upper 8 bits of transfer length, always 0 for 8192 max 
+    /* lba1 & lba2 are SP specific ACS3 */
+    /* SP specific = comid SIIS */
+    fis.lba1 = comid & 0x00ff;
+    fis.lba2 = (comid >> 8) & 0x00ff;
+    return sataIOCtl(port, readwrite, (void *) &fis, sizeof (FIS_REGISTER_H2D), buffer, bufLength);
+}
   
