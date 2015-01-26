@@ -32,6 +32,8 @@ This software is Copyright 2014-2015 Michael Romeo <r0m30@r0m30.com>
 #include "unlockOpal.h"
 #include "sata.h"
 
+int chainload(int argc, char *argv[]);
+
 int main(int argc, char *argv[])
 {
     struct pci_domain *domain = NULL;
@@ -125,6 +127,8 @@ int main(int argc, char *argv[])
      
     free_pci_domain(domain);
     //syslinux_reboot(1);
-    syslinux_local_boot(0x81);
+    //syslinux_local_boot(1);
+    char *chainargs[] = { "chain.c32","hd1,0" , };
+    chainload(2, chainargs);
 }
 
