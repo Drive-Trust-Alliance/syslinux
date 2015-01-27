@@ -25,6 +25,7 @@ This software is Copyright 2014-2015 Michael Romeo <r0m30@r0m30.com>
 #include <unistd.h>
 #include "msedpba.h"
 #include "sata.h"
+#include "trace.h"
 
 uint8_t sendCmd(AHCI_PORT *port, uint8_t ataCommand, uint8_t protocol, 
         uint16_t comid, void *buffer , size_t bufSize) {
@@ -60,8 +61,6 @@ uint8_t exec(AHCI_PORT *port, void * cmd, void * response, uint8_t protocol, uin
 //void MsedBaseDev::discovery0()
 void discovery0(AHCI_PORT *port, OPAL_DiskInfo *disk_info)
 {
-//    LOG(D1) << "Entering MsedBaseDev::discovery0()";
-    printf("Entering Discovery 0 \n");
     void * d0Response = NULL;
     uint8_t * epos, *cpos;
     Discovery0Header * hdr;
@@ -73,14 +72,18 @@ void discovery0(AHCI_PORT *port, OPAL_DiskInfo *disk_info)
         ALIGNED_FREE(d0Response);
         return;
     }
-    uint32_t *dump = (uint32_t *) d0Response;
-    for (int i = 0; i < (int) sizeof (OPAL_DiskInfo) / 4; i += 4) {
-        printf("%08x %08x %08x %08x \n", dump[0 + i], dump[1 + i], dump[2 + i], dump[3 + i]);
+    TRACE{
+        uint8_t *dump;
+        dump = (uint8_t *) d0Response;
+        printf("D0 response:");
+        for (int i = 0; i < 512; i++) {
+            if (!(i % 32)) printf("\n%04x ", i);
+            if (!(i % 4)) printf(" ");
+            printf("%02x", dump[i]);
+        }
     }
     epos = cpos = (uint8_t *) d0Response;
     hdr = (Discovery0Header *) d0Response;
- //   LOG(D3) << "Dumping D0Response";
- //   IFLOG(D3) MsedHexDump(hdr, SWAP32(hdr->length));
     epos = epos + SWAP32(hdr->length);
     cpos = cpos + 48; // TODO: check header version
 

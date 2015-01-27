@@ -90,13 +90,14 @@ int sataIOCtl(AHCI_PORT *port, uint8_t write, void * fis, size_t fislength, void
         do {} while (port->CMD.CR != 1);
         free(memBase);
         return -2;
-    } else {
-        dprintf("Spinning on IS.DPS\n");
-        do {} while (port->IS.BIT.DPS != 1);
-        memcpy(buffer, ioBuffer, buflength);
-        port->IS.REG = 0xffff;
-        free(memBase);
     }
+/* this hangs in vbox but seems to be needed in real hardware so I'm added the counter */
+    dprintf("Spinning on IS.DPS\n");
+    int spinondps = 0xffff;
+    do {if(1 < --spinondps) break;} while (port->IS.BIT.DPS != 1);
+    memcpy(buffer, ioBuffer, buflength);
+    port->IS.REG = 0xffff;
+    free(memBase);
     return 0;
 }
 

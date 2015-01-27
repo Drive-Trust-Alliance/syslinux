@@ -24,6 +24,7 @@ This software is Copyright 2014-2015 Michael Romeo <r0m30@r0m30.com>
 #include "gc.h"
 #include "unlockOpal.h"
 #include "MsedStructures.h"
+#include "trace.h"
 
 uint8_t unlockOpal(AHCI_PORT *port, char * pass, OPAL_DiskInfo *disk_info) {
     uint8_t startSession[] = {
@@ -150,43 +151,47 @@ uint8_t unlockOpal(AHCI_PORT *port, char * pass, OPAL_DiskInfo *disk_info) {
     gc_pbkdf2_sha1(pass, strnlen(pass, 256), (char *) disk_info->serialNum, 
             strnlen((char *) disk_info->serialNum, 255), 75000, passpos, 32);
     uint8_t *dump = (uint8_t *) cmd;
-    printf("command:");
-    for (int i = 0; i < 0x100; i++) {
-        if (!(i % 32)) printf("\n%04x ", i);
-        if (!(i % 4)) printf(" ");
-        printf("%02x", dump[i]);
+    TRACE{
+        printf("command:");
+        for (int i = 0; i < 0x100; i++) {
+            if (!(i % 32)) printf("\n%04x ", i);
+            if (!(i % 4)) printf(" ");
+            printf("%02x", dump[i]);
+        }
+        fgets(consoleBuffer, sizeof consoleBuffer, stdin);
     }
-    fgets(consoleBuffer, sizeof consoleBuffer, stdin);
     if (exec(port, (void *) cmd, (void *) resp, 0x01, comid)) {
         printf("start session failed \n");
         return 1;
     }
-    printf("response:");
-    dump = (uint8_t *) resp;
-    for (int i = 0; i < 0x100; i++) {
-        if (!(i % 32)) printf("\n%04x ", i);
-        if (!(i % 4)) printf(" ");
-        printf("%02x", dump[i]);
+    TRACE{
+        printf("response:");
+        dump = (uint8_t *) resp;
+        for (int i = 0; i < 0x100; i++) {
+            if (!(i % 32)) printf("\n%04x ", i);
+            if (!(i % 4)) printf(" ");
+            printf("%02x", dump[i]);
+        }
+        fgets(consoleBuffer, sizeof consoleBuffer, stdin);
     }
-    fgets(consoleBuffer, sizeof consoleBuffer, stdin);
     // get the TSN from the response
     resppos = (void *) resp + sizeof (OPALHeader);
     pResp = (RESPONSE *) resppos;
     if (pResp->data.token.header != 0xf8) {
-        printf("invalid start session response (1) \n");
+        TRACE printf("invalid start session response (1) \n");
         return 10;
     }
     resppos += (1 + 9 + 9);
     pResp = (RESPONSE *) resppos;
     if (pResp->data.token.header != 0xf0) {
-        printf("invalid start session response (2) \n");
+        TRACE printf("invalid start session response (2) \n");
         return 11;
     }
     resppos += 1;
     pResp = (RESPONSE *) resppos;
     // first list member is HSN 
     if ((pResp->data.token.header & 0xf0) != 0x80) {
-        printf("invalid start session response (3) \n");
+        TRACE printf("invalid start session response (3) \n");
         return 12;
     }
     resppos += (pResp->data.token.header & 0x0f);
@@ -194,7 +199,7 @@ uint8_t unlockOpal(AHCI_PORT *port, char * pass, OPAL_DiskInfo *disk_info) {
     pResp = (RESPONSE *) resppos;
     // Second list member is TSN 
     if ((pResp->data.token.header & 0xf0) != 0x80) {
-        printf("invalid start session response (4) \n");
+        TRACE printf("invalid start session response (4) \n");
         return 14;
     }
     if ((pResp->data.token.header & 0x0f) == 1)
@@ -206,7 +211,7 @@ uint8_t unlockOpal(AHCI_PORT *port, char * pass, OPAL_DiskInfo *disk_info) {
         if ((pResp->data.token.header & 0x0f) == 4)
         tsn = pResp->data.i.d.TCGUINT32;
     else {
-        printf("invalid start session response (5) \n");
+        TRACE printf("invalid start session response (5) \n");
         return 15;
     }
     // unlock the drive 
@@ -215,34 +220,38 @@ uint8_t unlockOpal(AHCI_PORT *port, char * pass, OPAL_DiskInfo *disk_info) {
     pCmd->cp.extendedComID[0] = ((comid & 0xff00) >> 8);
     pCmd->cp.extendedComID[1] = (comid & 0x00ff);
     pCmd->pkt.TSN = tsn;
-    dump = (uint8_t *) cmd;
-    printf("command:");
-    for (int i = 0; i < 0x100; i++) {
-        if (!(i % 32)) printf("\n%04x ", i);
-        if (!(i % 4)) printf(" ");
-        printf("%02x", dump[i]);
+    TRACE{
+        dump = (uint8_t *) cmd;
+        printf("command:");
+        for (int i = 0; i < 0x100; i++) {
+            if (!(i % 32)) printf("\n%04x ", i);
+            if (!(i % 4)) printf(" ");
+            printf("%02x", dump[i]);
+        }
+        fgets(consoleBuffer, sizeof consoleBuffer, stdin);
     }
-    fgets(consoleBuffer, sizeof consoleBuffer, stdin);
     if (exec(port, (void *) cmd, (void *) resp, 0x01, comid)) {
-        printf("unlock failed \n");
+        TRACE printf("unlock failed \n");
         return 20;
     }
-    printf("response:");
-    dump = (uint8_t *) resp;
-    for (int i = 0; i < 0x100; i++) {
-        if (!(i % 32)) printf("\n%04x ", i);
-        if (!(i % 4)) printf(" ");
-        printf("%02x", dump[i]);
-   }
-    fgets(consoleBuffer, sizeof consoleBuffer, stdin);
+    TRACE{
+        printf("response:");
+        dump = (uint8_t *) resp;
+        for (int i = 0; i < 0x100; i++) {
+            if (!(i % 32)) printf("\n%04x ", i);
+            if (!(i % 4)) printf(" ");
+            printf("%02x", dump[i]);
+        }
+        fgets(consoleBuffer, sizeof consoleBuffer, stdin);
+    }
     resppos = (void *) resp + sizeof (OPALHeader);
     pResp = (RESPONSE *) resppos;
     if (pResp->data.token.header != 0xf0) {
-        printf("invalid unlock response (1) \n");
+        TRACE printf("invalid unlock response (1) \n");
         return 21;
     }
     if (pResp->data.token.bytes[3] != 0x00) {
-        printf("invalid unlock response method status %i \n", 
+        TRACE printf("invalid unlock response method status %i \n", 
                 (uint16_t) pResp->data.token.bytes[3]);
         return 22;
     }
@@ -253,34 +262,38 @@ uint8_t unlockOpal(AHCI_PORT *port, char * pass, OPAL_DiskInfo *disk_info) {
         pCmd->cp.extendedComID[0] = ((comid & 0xff00) >> 8);
         pCmd->cp.extendedComID[1] = (comid & 0x00ff);
         pCmd->pkt.TSN = tsn;
-        dump = (uint8_t *) cmd;
-        printf("command:");
-        for (int i = 0; i < 0x100; i++) {
-            if (!(i % 32)) printf("\n%04x ", i);
-            if (!(i % 4)) printf(" ");
-            printf("%02x", dump[i]);
+        TRACE{
+            dump = (uint8_t *) cmd;
+            printf("command:");
+            for (int i = 0; i < 0x100; i++) {
+                if (!(i % 32)) printf("\n%04x ", i);
+                if (!(i % 4)) printf(" ");
+                printf("%02x", dump[i]);
+            }
+            fgets(consoleBuffer, sizeof consoleBuffer, stdin);
         }
-        fgets(consoleBuffer, sizeof consoleBuffer, stdin);
         if (exec(port, (void *) cmd, (void *) resp, 0x01, comid)) {
-            printf("mbrDone failed \n");
+            TRACE printf("mbrDone failed \n");
             return 30;
         }
-        printf("response:");
-        dump = (uint8_t *) resp;
-        for (int i = 0; i < 0x100; i++) {
-            if (!(i % 32)) printf("\n%04x ", i);
-            if (!(i % 4)) printf(" ");
-            printf("%02x", dump[i]);
+        TRACE{
+            printf("response:");
+            dump = (uint8_t *) resp;
+            for (int i = 0; i < 0x100; i++) {
+                if (!(i % 32)) printf("\n%04x ", i);
+                if (!(i % 4)) printf(" ");
+                printf("%02x", dump[i]);
+            }
+            fgets(consoleBuffer, sizeof consoleBuffer, stdin);
         }
-        fgets(consoleBuffer, sizeof consoleBuffer, stdin);
         resppos = (void *) resp + sizeof (OPALHeader);
         pResp = (RESPONSE *) resppos;
         if (pResp->data.token.header != 0xf0) {
-            printf("invalid mbrDone response (1) \n");
+            TRACE printf("invalid mbrDone response (1) \n");
             return 32;
         }
         if (pResp->data.token.bytes[3] != 0x00) {
-            printf("invalid mbrDone response method status %i \n", 
+            TRACE printf("invalid mbrDone response method status %i \n", 
                     (uint16_t) pResp->data.token.bytes[3]);
             return 32;
         }
@@ -291,30 +304,34 @@ uint8_t unlockOpal(AHCI_PORT *port, char * pass, OPAL_DiskInfo *disk_info) {
     pCmd->cp.extendedComID[0] = ((comid & 0xff00) >> 8);
     pCmd->cp.extendedComID[1] = (comid & 0x00ff);
     pCmd->pkt.TSN = tsn;
-    dump = (uint8_t *) cmd;
-    printf("command:");
-    for (int i = 0; i < 0x100; i++) {
-        if (!(i % 32)) printf("\n");
-        printf("%02x", dump[i]);
+    TRACE{
+        dump = (uint8_t *) cmd;
+        printf("command:");
+        for (int i = 0; i < 0x100; i++) {
+            if (!(i % 32)) printf("\n");
+            printf("%02x", dump[i]);
+        }
+        fgets(consoleBuffer, sizeof consoleBuffer, stdin);
     }
-    fgets(consoleBuffer, sizeof consoleBuffer, stdin);
     if (exec(port, (void *) cmd, (void *) resp, 0x01, comid)) {
         printf("endSession failed \n");
         return 40;
     }
-    printf("response:");
-    dump = (uint8_t *) resp;
-    for (int i = 0; i < 0x100; i++) {
-        if (!(i % 32)) printf("\n");
-        printf("%02x", dump[i]);
+    TRACE{
+        printf("response:");
+        dump = (uint8_t *) resp;
+        for (int i = 0; i < 0x100; i++) {
+            if (!(i % 32)) printf("\n");
+            printf("%02x", dump[i]);
+        }
+        fgets(consoleBuffer, sizeof consoleBuffer, stdin);
     }
-    fgets(consoleBuffer, sizeof consoleBuffer, stdin);
     resppos = (void *) resp + sizeof (OPALHeader);
     pResp = (RESPONSE *) resppos;
     if (pResp->data.token.header != 0xfa) {
-        printf("invalid endSession response (1) \n");
+        TRACE printf("invalid endSession response (1) \n");
         return 41;
     }
-    fgets(consoleBuffer, sizeof consoleBuffer, stdin);
+    TRACE fgets(consoleBuffer, sizeof consoleBuffer, stdin);
     return 0;
 }
