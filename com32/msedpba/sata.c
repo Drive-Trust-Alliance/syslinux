@@ -79,6 +79,7 @@ int sataIOCtl(AHCI_PORT *port, uint8_t write, void * fis, size_t fislength, void
     dprintf("SATAIOCTL - PRDBC %08x\n", commandHeader->PRDBC);
 
     if (port->TFD.STSERR) {
+        int saveError = port->TFD.ERR;
         // stop and restart the port to clear stserr
         port->CMD.ST = 0; /* stop the port */
         do {} while (port->CI != 0);
@@ -89,9 +90,9 @@ int sataIOCtl(AHCI_PORT *port, uint8_t write, void * fis, size_t fislength, void
         port->CMD.ST = 1;
         do {} while (port->CMD.CR != 1);
         free(memBase);
-        return -2;
+        return saveError;
     }
-/* this hangs in vbox but seems to be needed in real hardware so I'm added the counter */
+/* this hangs in vbox but seems to be needed in real hardware so I added the counter */
     dprintf("Spinning on IS.DPS\n");
     int spinondps = 0xffff;
     do {if(1 < --spinondps) break;} while (port->IS.BIT.DPS != 1);

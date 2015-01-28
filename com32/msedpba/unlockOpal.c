@@ -162,7 +162,7 @@ uint8_t unlockOpal(AHCI_PORT *port, char * pass, OPAL_DiskInfo *disk_info) {
     }
     if (exec(port, (void *) cmd, (void *) resp, 0x01, comid)) {
         printf("start session failed \n");
-        return 1;
+        return 10;
     }
     TRACE{
         printf("response:");
@@ -179,23 +179,22 @@ uint8_t unlockOpal(AHCI_PORT *port, char * pass, OPAL_DiskInfo *disk_info) {
     pResp = (RESPONSE *) resppos;
     if (pResp->data.token.header != 0xf8) {
         TRACE printf("invalid start session response (1) \n");
-        return 10;
+        return 11;
     }
     resppos += (1 + 9 + 9);
     pResp = (RESPONSE *) resppos;
     if (pResp->data.token.header != 0xf0) {
         TRACE printf("invalid start session response (2) \n");
-        return 11;
+        return 12;
     }
     resppos += 1;
     pResp = (RESPONSE *) resppos;
     // first list member is HSN 
     if ((pResp->data.token.header & 0xf0) != 0x80) {
         TRACE printf("invalid start session response (3) \n");
-        return 12;
+        return 13;
     }
-    resppos += (pResp->data.token.header & 0x0f);
-    resppos += 13;
+    resppos += ((pResp->data.token.header & 0x0f) + 1);
     pResp = (RESPONSE *) resppos;
     // Second list member is TSN 
     if ((pResp->data.token.header & 0xf0) != 0x80) {

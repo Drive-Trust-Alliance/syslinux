@@ -348,6 +348,8 @@ typedef struct _IDENTIFY_RESPONSE {
     uint8_t reserved3[6];
     uint8_t firmwareRev[8];
     uint8_t modelNum[40];
+    uint8_t reserved4[2];
+    uint16_t TCGSupport;
 } IDENTIFY_RESPONSE;
 
 #pragma pack(pop)

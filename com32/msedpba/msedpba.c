@@ -107,8 +107,13 @@ again:
                     printf("Failed to open SATA port\n");
                     continue;
                 }
-                if(sataIdentify(&abar->PORT[i], &ioBuffer)) { 
+                rc = sataIdentify(&abar->PORT[i], &ioBuffer);
+                if(4 == rc) { // retry on abort
+                    rc = sataIdentify(&abar->PORT[i], &ioBuffer);
+                }
+                if(0 != rc) {           
                     printf("identify failed\n");
+                    sataClose(&abar->PORT[i]);
                     continue;
                 }
                 memset(&disk_info,0,sizeof(OPAL_DiskInfo));
@@ -129,10 +134,15 @@ again:
                 }
                 TRACE printf("Identify %s %s %s\n", disk_info.modelNum,disk_info.firmwareRev,disk_info.serialNum);
                 printf(" %s ", disk_info.modelNum);
+                if(!identifyResp->TCGSupport) {
+                    printf(" No TCG support\n");
+                    sataClose(&abar->PORT[i]);
+                    continue;
+                }
                 discovery0(&abar->PORT[i], &disk_info);
                 uint8_t *dump = (uint8_t *) &disk_info;
                 TRACE {
-                    printf("disk_info:");
+                    printf("\ndisk_info:");
                     for (int i = 0; i < (int) sizeof(disk_info); i++) {
                         if (!(i % 32)) printf("\n%04x ", i);
                         if (!(i % 4)) printf(" ");
@@ -140,8 +150,13 @@ again:
                     }
                     fgets(consoleBuffer, sizeof consoleBuffer, stdin);
                 }
-                if((disk_info.OPAL10 || disk_info.OPAL20) && disk_info.Locking_locked) {
+                if((disk_info.OPAL10 || disk_info.OPAL20)) {
                     printf(" is OPAL ");
+                    if(!disk_info.Locking_locked) {
+                        printf(" Not Locked \n");
+                        sataClose(&abar->PORT[i]);
+                        continue;
+                    }
                     rc = unlockOpal(&abar->PORT[i],user_password, &disk_info);
                     TRACE fgets(consoleBuffer, sizeof consoleBuffer, stdin);
                     if(rc == 0) {
