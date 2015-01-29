@@ -174,6 +174,6 @@ again:
     free_pci_domain(domain);
 chainload:
     printf("About to Chainload %s ",chainargs[1]);
-    fgets(consoleBuffer, sizeof consoleBuffer, stdin);
+    TRACE fgets(consoleBuffer, sizeof consoleBuffer, stdin);
     chainload(2, chainargs);
 }
