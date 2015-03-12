@@ -149,7 +149,7 @@ uint8_t unlockOpal(AHCI_PORT *port, char * pass, OPAL_DiskInfo *disk_info) {
     passpos = (void *) cmd;
     passpos += 0x5c;
     gc_pbkdf2_sha1(pass, strnlen(pass, 256), (char *) disk_info->serialNum, 
-            strnlen((char *) disk_info->serialNum, 255), 75000, passpos, 32);
+            20, 75000, passpos, 32);
     uint8_t *dump = (uint8_t *) cmd;
     TRACE{
         printf("command:");

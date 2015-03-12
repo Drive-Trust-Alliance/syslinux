@@ -85,7 +85,7 @@ again:
             printf("Found SATA controller in AHCI mode on the PCI buss @ %08x\n", address);
             printf("vendor/product %08x, class %08x, misc@+0c %08x \n",pci_readl(address),pci_readl(address+0x08),pci_readl(address+0x0c));
         }
-        if(0x0000 != (pci_readw(address + 0x0c) & 0x00ff)) {
+        if(0x0000 != (pci_readw(address + 0x0c) & 0x000f)) {
           printf("Invalid PCI header type %02x\n",(pci_readw(address + 0x0c) & 0x00ff));
           continue;
          }
