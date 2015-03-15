@@ -19,16 +19,20 @@ This software is Copyright 2014-2015 Michael Romeo <r0m30@r0m30.com>
 * C:E********************************************************************** */
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <consoles.h>
 #include <sys/pci.h>
+#include <syslinux/reboot.h>
 #include "msedpba.h"
 #include "unlockOpal.h"
 #include "sata.h"
 #include "trace.h"
 
 // define stuff stolen from syslinux codebase
+#ifdef __FIRMWARE_BIOS__
 int chainload(int argc, char *argv[]);
+#endif
 int ask_passwd(char *user_passwd);
 
 int main(int argc, char *argv[])
@@ -92,10 +96,24 @@ again:
         ABAR = pci_readl(address + 0x24);
         TRACE printf("PCI ABAR Registers:\n  %08x \n", ABAR);
         TRACE fgets(consoleBuffer, sizeof consoleBuffer, stdin);
+ #ifdef __FIRMWARE_EFI64__
+        uint64_t ABAR64 = ABAR;
+        abar = (AHCI_GLOBAL *)ABAR64;
+#else
         abar = (AHCI_GLOBAL *)ABAR;
+#endif
         TRACE printf("Scanning for devices on adapter pi=%08x\n", abar->PI);
         for (int i = 0; i < 32; i++) {
             if (abar->PI & (1 << i)) {
+                if (abar->PORT[i].SSTS.DET == AHCI_PORT_DET_PRESENT) {
+                    TRACE printf("Turning off ALPE \n");
+                    if (abar->CAP.SALP) { 
+                        abar->PORT[i].CMD.ALPE = 0;
+                        abar->PORT[i].CMD.ASP = 0;
+                    }
+                    abar->PORT[i].CMD.ICC = 1;
+                    msleep(25);
+                }
                 TRACE printf("SSTS %01x:%01x:%01x sig %08x\n", abar->PORT[i].SSTS.DET,
                         abar->PORT[i].SSTS.SPD, abar->PORT[i].SSTS.IPM,
                         abar->PORT[i].SIG);
@@ -103,23 +121,23 @@ again:
                 if (abar->PORT[i].SSTS.IPM != AHCI_PORT_IPM_ACTIVE) continue;
                 if (abar->PORT[i].SIG != SATA_SIG_ATA) continue;
                 printf("Found device ");
-                if(sataOpen(&abar->PORT[i])) {
+                if (sataOpen(&abar->PORT[i])) {
                     printf("Failed to open SATA port\n");
                     continue;
                 }
                 rc = sataIdentify(&abar->PORT[i], &ioBuffer);
-                if(4 == rc) { // retry on abort
+                if (4 == rc) { // retry on abort
                     rc = sataIdentify(&abar->PORT[i], &ioBuffer);
                 }
-                if(0 != rc) {           
+                if (0 != rc) {
                     printf("identify failed\n");
                     sataClose(&abar->PORT[i]);
                     continue;
                 }
-                memset(&disk_info,0,sizeof(OPAL_DiskInfo));
+                memset(&disk_info, 0, sizeof (OPAL_DiskInfo));
                 disk_info.devType = 1;
-                IDENTIFY_RESPONSE *identifyResp = (IDENTIFY_RESPONSE *)ioBuffer;
-// fix and save the drive info
+                IDENTIFY_RESPONSE *identifyResp = (IDENTIFY_RESPONSE *) ioBuffer;
+                // fix and save the drive info
                 for (uint16_t i = 0; i < sizeof (disk_info.serialNum); i += 2) {
                     disk_info.serialNum[i] = identifyResp->serialNum[i + 1];
                     disk_info.serialNum[i + 1] = identifyResp->serialNum[i];
@@ -132,40 +150,40 @@ again:
                     disk_info.modelNum[i] = identifyResp->modelNum[i + 1];
                     disk_info.modelNum[i + 1] = identifyResp->modelNum[i];
                 }
-                TRACE printf("Identify %s %s %s\n", disk_info.modelNum,disk_info.firmwareRev,disk_info.serialNum);
+                TRACE printf("Identify %s %s %s\n", disk_info.modelNum, disk_info.firmwareRev, disk_info.serialNum);
                 printf(" %s ", disk_info.modelNum);
-                if(!identifyResp->TCGSupport) {
+                if (!identifyResp->TCGSupport) {
                     printf(" No TCG support\n");
                     sataClose(&abar->PORT[i]);
                     continue;
                 }
                 discovery0(&abar->PORT[i], &disk_info);
-                uint8_t *dump = (uint8_t *) &disk_info;
-                TRACE {
+                uint8_t *dump = (uint8_t *) & disk_info;
+                TRACE{
                     printf("\ndisk_info:");
-                    for (int i = 0; i < (int) sizeof(disk_info); i++) {
+                    for (int i = 0; i < (int) sizeof (disk_info); i++) {
                         if (!(i % 32)) printf("\n%04x ", i);
                         if (!(i % 4)) printf(" ");
                         printf("%02x", dump[i]);
                     }
                     fgets(consoleBuffer, sizeof consoleBuffer, stdin);
                 }
-                if((disk_info.OPAL10 || disk_info.OPAL20)) {
+                if ((disk_info.OPAL10 || disk_info.OPAL20)) {
                     printf(" is OPAL ");
-                    if(!disk_info.Locking_locked) {
+                    if (!disk_info.Locking_locked) {
                         printf(" Not Locked \n");
                         sataClose(&abar->PORT[i]);
                         continue;
                     }
-                    rc = unlockOpal(&abar->PORT[i],user_password, &disk_info);
+                    rc = unlockOpal(&abar->PORT[i], user_password, &disk_info);
                     TRACE fgets(consoleBuffer, sizeof consoleBuffer, stdin);
-                    if(rc == 0) {
+                    if (rc == 0) {
                         printf("unlocked \n");
                     } else {
                         printf("Failed \n");
-                        fail += 1;    
+                        fail += 1;
                     }
-                } else 
+                } else
                     printf(" NOT OPAL \n");
                 sataClose(&abar->PORT[i]);
             }
@@ -173,7 +191,11 @@ again:
     }	     
     free_pci_domain(domain);
 chainload:
+ #ifdef __FIRMWARE_BIOS__
     printf("About to Chainload %s ",chainargs[1]);
     TRACE fgets(consoleBuffer, sizeof consoleBuffer, stdin);
     chainload(2, chainargs);
+#else
+    syslinux_reboot(1);
+#endif
 }

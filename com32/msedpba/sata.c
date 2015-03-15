@@ -26,17 +26,18 @@ This software is Copyright 2014-2015 Michael Romeo <r0m30@r0m30.com>
 #include "sata.h"
 
 #define SATA_IOCTL_MEM_SIZE 4096*2  //ensure buffer 4K aligned 
+#define PRT dprintf
 int sataIOCtl(AHCI_PORT *port, uint8_t write, void * fis, size_t fislength, void *buffer, size_t buflength) {
     if(buflength % 2) {
-        dprintf("SATA Spec calls for even byte I/O\n");
+        PRT("SATA Spec calls for even byte I/O\n");
         return -99;
     }
     if(8192 < buflength) {
-        dprintf("Driver currently supports max 8192 byte I/O\n");
+        PRT("Driver currently supports max 8192 byte I/O\n");
         return -98;
     }
 /* allocate and populate the AHCI Command list structure */
-       dprintf("Entered sata_I/O control \n");
+       PRT("Entered sata_I/O control \n");
 /* void pointers for math */
     void *memBase;       /*< initial memory pointer before alignment */
     void *commandTable;      /*< AHCI Command table  */
@@ -45,38 +46,57 @@ int sataIOCtl(AHCI_PORT *port, uint8_t write, void * fis, size_t fislength, void
     void *ioBuffer;         /*< address of the I/O buffer */
     memBase = malloc(SATA_IOCTL_MEM_SIZE+buflength); 
     if(NULL == memBase) { 
-        dprintf("Error allocating memory for sata I/O control \n");
+        PRT("Error allocating memory for sata I/O control \n");
         return -1;  /* should reconcile these with std error numbers */
     }
     memset(memBase, 0, SATA_IOCTL_MEM_SIZE+buflength);
-    commandTable = (void *) ((((uint32_t)memBase + 4096) >> 12) << 12); /* go forward to a 4k boundary */
+    commandTable = memBase + 4096;
+ #ifdef __FIRMWARE_EFI64__
+    commandTable = (void*) ((uint64_t) commandTable & ~(4096-1)); /* back up to a 4k boundary */
+#else
+    commandTable = (void *) ((uint32_t) commandTable & ~(4096-1)); /* back up to a 4k boundary */
+#endif
     memcpy(commandTable,fis,fislength);
     prdtAddr = commandTable + 0x80;
     prdte = (AHCI_PRDTE *) prdtAddr;
     ioBuffer = commandTable + 4096;
+ #ifdef __FIRMWARE_EFI64__
+    prdte->DBA = (uint32_t) ((uint64_t) ioBuffer & 0xffffffff) ;
+     prdte->DBAU = (uint32_t) ((uint64_t) ioBuffer >> 32) & 0xffffffff;
+#else
     prdte->DBA = (uint32_t) ioBuffer;
     prdte->DBAU = 0;
+#endif
     prdte->DI.DBC = buflength - 1; /* DBC is 0 based */
     prdte->DI.I = 1;
     memcpy(ioBuffer,buffer,buflength);
-    dprintf("commandTable %p PRDT %p ioBuffer %p \n", commandTable, prdtAddr, ioBuffer);
+    PRT("commandTable %p PRDT %p ioBuffer %p \n", commandTable, prdtAddr, ioBuffer);
 /* update the command slot with the address of the command list */
 // assuming single threaded initialization and using slot 0 
+#ifdef __FIRMWARE_EFI64__
+   AHCI_COMMAND_HEADER *commandHeader = (AHCI_COMMAND_HEADER *) (((uint64_t) port->CLB) & (((uint64_t) port->CLBU) << 32));
+#else
     AHCI_COMMAND_HEADER *commandHeader = (AHCI_COMMAND_HEADER *) port->CLB;
+#endif
     memset((void *)commandHeader, 0, sizeof(AHCI_COMMAND_HEADER));
     commandHeader->DI.CFL = fislength / 4;
     commandHeader->DI.W = write;
     commandHeader->DI.PRDTL = 1;
+ #ifdef __FIRMWARE_EFI64__
+     commandHeader->CTBA = (uint32_t) ((uint64_t)commandTable & 0xffffffff) ;
+     commandHeader->CTBAU = (uint32_t) ((uint64_t)commandTable >> 32) & 0xffffffff;
+#else   
     commandHeader->CTBA = (uint32_t) commandTable;
+#endif
     /* tell the HBA it has a command */
     port->IS.REG = 0xffff;
     port->CI |= 1; 
-    dprintf("issued command - bsy %01x drq %01x CI %08x\n", port->TFD.STSBSY, port->TFD.STSDRQ, port->CI);
+    PRT("issued command - bsy %01x drq %01x CI %08x\n", port->TFD.STSBSY, port->TFD.STSDRQ, port->CI);
     /* wait for the results */
     do {if(port->TFD.STSERR) break;} while (port->CI & 1);
-    dprintf("Ended - bsy %01x drq %01x STSERR %01x CI %08x\n", port->TFD.STSBSY, port->TFD.STSDRQ, 
+    PRT("Ended - bsy %01x drq %01x STSERR %01x CI %08x\n", port->TFD.STSBSY, port->TFD.STSDRQ, 
             port->TFD.STSERR,port->CI);
-    dprintf("SATAIOCTL - PRDBC %08x\n", commandHeader->PRDBC);
+    PRT("SATAIOCTL - PRDBC %08x\n", commandHeader->PRDBC);
 
     if (port->TFD.STSERR) {
         int saveError = port->TFD.ERR;
@@ -93,7 +113,7 @@ int sataIOCtl(AHCI_PORT *port, uint8_t write, void * fis, size_t fislength, void
         return saveError;
     }
 /* this hangs in vbox but seems to be needed in real hardware so I added the counter */
-    dprintf("Spinning on IS.DPS\n");
+    PRT("Spinning on IS.DPS\n");
     int spinondps = 0xffff;
     do {if(1 < --spinondps) break;} while (port->IS.BIT.DPS != 1);
     memcpy(buffer, ioBuffer, buflength);

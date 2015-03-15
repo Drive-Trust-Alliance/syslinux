@@ -289,7 +289,7 @@ typedef volatile struct _AHCI_COMMAND_TABLE {
 } AHCI_COMMAND_TABLE;
 /** Save area for information needed to restore state */
 typedef struct _AHCI_INIT_SAVE {
-    uint32_t baseMemoryAddress;    /*< actual mallic address */
+    void * baseMemoryAddress;    /*< actual mallic address */
     uint32_t originalCLB;           /*< preinit Command List Base address */
     uint32_t originalCLBU;          /*< preinit Command List Base address upper 32Bits*/
     uint32_t originalFB;            /*< preinit Received FIS Base address */

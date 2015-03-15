@@ -20,4 +20,5 @@ along with msed.  If not, see <http://www.gnu.org/licenses/>.
 #pragma once
 #include <stdint.h>
 #define TRACE if(msedTraceLevel > 0)
+//#define TRACE
 extern uint8_t msedTraceLevel;

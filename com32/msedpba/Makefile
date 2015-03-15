@@ -22,7 +22,9 @@ CHAINOBJS = chain.o partiter.o utility.o options.o mangle.o
 MENUOBJS = getpass.o
 
 OBJS += $(GNUOBJS)
+ifeq ($(FIRMWARE),BIOS)
 OBJS += $(CHAINOBJS)
+endif
 OBJS += $(MENUOBJS)
 
 CFLAGS += -fno-strict-aliasing -Werror -Wall
@@ -33,7 +35,7 @@ msedpba.elf: $(OBJS) $(C_LIBS)
 	$(LD) $(LDFLAGS) -o $@ $^
 
 %.o: %.c
-	$(CC) $(MAKEDEPS) $(CFLAGS) $(CHAINEXTOPT) -c -o $@ $<
+	$(CC) $(MAKEDEPS) $(CFLAGS) $(CHAINEXTOPT) -D__FIRMWARE_$(FIRMWARE)__ -c -o $@ $<
 
 tidy dist:
 	rm -f *.o *.lo *.a *.lst *.elf .*.d *.tmp

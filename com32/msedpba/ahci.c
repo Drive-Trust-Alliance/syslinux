@@ -25,9 +25,10 @@ This software is Copyright 2014-2015 Michael Romeo <r0m30@r0m30.com>
 #include "ahci.h"
 
 #define AHCI_INIT_MEM_SIZE (1024 + 1024+256+sizeof(AHCI_INIT_SAVE))
+#define PRT dprintf
 
 int ahci_initialize(AHCI_PORT *port) {
-   dprintf("Entered ahci_initialize\n");
+   PRT("Entered ahci_initialize\n");
 /* void pointers for math */
     void *memBase;       /*< initial memory pointer before alignment */
     void *commandList;   /*< pointer to command list */
@@ -36,46 +37,61 @@ int ahci_initialize(AHCI_PORT *port) {
 
     memBase = malloc(AHCI_INIT_MEM_SIZE); 
     if(NULL == memBase) { 
-        dprintf("Error allocating memory for AHCI initialization \n");
+        PRT("Error allocating memory for AHCI initialization \n");
         return -1;  /* should reconcile these with std error numbers */
     }
     
     memset(memBase, 0, AHCI_INIT_MEM_SIZE);
-    commandList = (void *) ((((uint32_t)memBase + 1024) >> 10) << 10);           /* go forward to a 1K boundary */
+#ifdef __FIRMWARE_EFI64__
+    commandList = (void *) ((((uint64_t)memBase + 1024) >> 10) << 10);  /* go forward to a 1K boundary */
+#else
+    commandList = (void *) ((((uint32_t)memBase + 1024) >> 10) << 10);  /* go forward to a 1K boundary */
+#endif
     receivedFIS = commandList + 1024;
     ahciSave = receivedFIS + 256;
     
     ahciSave->originalCR = port->CMD.CR;
     ahciSave->originalFR = port->CMD.FR;
     
-    dprintf("Stopping the PORT CMD.ST = %01x \n",port->CMD.ST);
+    PRT("Stopping the PORT CMD.ST = %01x \n",port->CMD.ST);
 /* Stop activity on the port so we can reconfigure the memory*/
     port->CMD.ST = 0;   /* stop the port */
-    dprintf("Waiting on CI\n");
+    PRT("Waiting on CI\n");
     do {} while(port->CI !=0 );
     port->CMD.FRE = 0;
     do {} while (port->CMD.FR != 0);
-    dprintf("Port stopped ST = %01x FRE = %01x CR = %01x FR = %01x \n",port->CMD.ST,port->CMD.FRE
+    PRT("Port stopped ST = %01x FRE = %01x CR = %01x FR = %01x \n",port->CMD.ST,port->CMD.FRE
             ,port->CMD.CR,port->CMD.FR);
-//    dprintf("Port stopped assigning memory\n");
+//    PRT("Port stopped assigning memory\n");
 /*  Assign the new memory structures to the port */
-    ahciSave->baseMemoryAddress = (uint32_t) memBase;
+    ahciSave->baseMemoryAddress = memBase;
+    
     ahciSave->originalCLB = port->CLB;
     ahciSave->originalCLBU = port->CLBU;
     ahciSave->originalFB = port->FB;
     ahciSave->originalFBU = port->FBU;
+#ifdef __FIRMWARE_EFI64__
+    port->CLB = (uint32_t) ((uint64_t) commandList & 0xffffffff) ;
+    port->CLBU = (uint32_t) ((uint64_t)commandList >> 32) & 0xffffffff;
+#else
     port->CLB = (uint32_t) commandList;
     port->CLBU = 0;
+#endif
+#ifdef __FIRMWARE_EFI64__
+    port->FB = (uint32_t) ((uint64_t)receivedFIS & 0xffffffff) ;
+    port->FBU = (uint32_t) ((uint64_t)receivedFIS >> 32) & 0xffffffff;
+#else
     port->FB = (uint32_t) receivedFIS;
     port->FBU = 0;
-    dprintf("Restarting Port\n");
+#endif
+    PRT("Restarting Port\n");
     port->CMD.FRE = 1;
     do {} while (port->CMD.FR != 1);
     port->CMD.ST = 1;
     do {} while (port->CMD.CR != 1);
-    dprintf("Port started ST = %01x FRE = %01x CR = %01x FR = %01x \n",port->CMD.ST,port->CMD.FRE
+    PRT("Port started ST = %01x FRE = %01x CR = %01x FR = %01x \n",port->CMD.ST,port->CMD.FRE
             ,port->CMD.CR,port->CMD.FR);
-    dprintf("CLB = %08x FB = %08x \n",port->CLB,port->FB);
+    PRT("CLB = %08x FB = %08x \n",port->CLB,port->FB);
     return 0;
 } 
 void ahci_restore(AHCI_PORT *port) {
@@ -85,14 +101,18 @@ void ahci_restore(AHCI_PORT *port) {
     
     /* Stop activity on the port so we can reconfigure the memory*/
     port->CMD.ST = 0;   /* stop the port */
-    dprintf("Waiting on CI\n");
+    PRT("Waiting on CI\n");
     do {} while(port->CI !=0 );
     port->CMD.FRE = 0;
     do {} while (port->CMD.FR != 0);
 /* restore port to original state */
+#ifdef __FIRMWARE_EFI64__
+    cmdList = (void *) (((uint64_t) port->CLBU << 32) & ((uint64_t) port->CLB)) ;
+#else
     cmdList = (void *) port->CLB;
+#endif
     ahciSave = cmdList + 1024 + 256;
-    memBase = (void *) ahciSave->baseMemoryAddress; 
+    memBase = ahciSave->baseMemoryAddress; 
     port->CLB= ahciSave->originalCLB;
     port->CLBU = ahciSave->originalCLBU;
     port->FB = ahciSave->originalFB;
