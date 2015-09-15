@@ -202,13 +202,13 @@ uint8_t unlockOpal(AHCI_PORT *port, char * pass, OPAL_DiskInfo *disk_info) {
         return 14;
     }
     if ((pResp->data.token.header & 0x0f) == 1)
-        tsn = pResp->data.i.d.TCGUINT8;
+        tsn = (uint32_t)pResp->data.i.d.TCGUINT8;
     else
         if ((pResp->data.token.header & 0x0f) == 2)
-        tsn = pResp->data.i.d.TCGUINT16;
+        tsn = (uint32_t)SWAP16(pResp->data.i.d.TCGUINT16);
     else
         if ((pResp->data.token.header & 0x0f) == 4)
-        tsn = pResp->data.i.d.TCGUINT32;
+        tsn = SWAP32(pResp->data.i.d.TCGUINT32);
     else {
         TRACE printf("invalid start session response (5) \n");
         return 15;
@@ -218,7 +218,7 @@ uint8_t unlockOpal(AHCI_PORT *port, char * pass, OPAL_DiskInfo *disk_info) {
     memcpy(cmd, unlock, sizeof (unlock));
     pCmd->cp.extendedComID[0] = ((comid & 0xff00) >> 8);
     pCmd->cp.extendedComID[1] = (comid & 0x00ff);
-    pCmd->pkt.TSN = tsn;
+    pCmd->pkt.TSN = SWAP32(tsn);
     TRACE{
         dump = (uint8_t *) cmd;
         printf("command:");
@@ -260,7 +260,7 @@ uint8_t unlockOpal(AHCI_PORT *port, char * pass, OPAL_DiskInfo *disk_info) {
         memcpy(cmd, mbrDone, sizeof (mbrDone));
         pCmd->cp.extendedComID[0] = ((comid & 0xff00) >> 8);
         pCmd->cp.extendedComID[1] = (comid & 0x00ff);
-        pCmd->pkt.TSN = tsn;
+        pCmd->pkt.TSN = SWAP32(tsn);
         TRACE{
             dump = (uint8_t *) cmd;
             printf("command:");
@@ -302,7 +302,7 @@ uint8_t unlockOpal(AHCI_PORT *port, char * pass, OPAL_DiskInfo *disk_info) {
     memcpy(cmd, endSession, sizeof (endSession));
     pCmd->cp.extendedComID[0] = ((comid & 0xff00) >> 8);
     pCmd->cp.extendedComID[1] = (comid & 0x00ff);
-    pCmd->pkt.TSN = tsn;
+    pCmd->pkt.TSN = SWAP32(tsn);
     TRACE{
         dump = (uint8_t *) cmd;
         printf("command:");
