@@ -170,10 +170,10 @@ again:
                 }
                 if ((disk_info.OPAL10 || disk_info.OPAL20)) {
                     printf(" is OPAL ");
-                    if (!disk_info.Locking_locked) {
+                    if (!disk_info.Locking_locked && !disk_info.Locking_MBREnabled) {
                         printf(" Not Locked \n");
                         sataClose(&abar->PORT[i]);
-                        continue;
+                        continue; 
                     }
                     rc = unlockOpal(&abar->PORT[i], user_password, &disk_info);
                     TRACE fgets(consoleBuffer, sizeof consoleBuffer, stdin);
